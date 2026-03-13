@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stundenplan · Gymnasium Olbernhau</title>
+<style>
+  :root {
+    --bg:       #0f1117;
+    --bg2:      #181c27;
+    --bg3:      #1e2336;
+    --border:   #2a3050;
+    --text:     #d4daf0;
+    --muted:    #5a6080;
+    --accent:   #4a8fff;
+    --accent2:  #7eb8f7;
+    --green:    #4ecb8d;
+    --orange:   #f0a040;
+    --red:      #f05560;
+    --tag-mo:   #3a4a8a;
+    --tag-di:   #3a6a5a;
+    --tag-mi:   #5a4a8a;
+    --tag-do:   #6a4a3a;
+    --tag-fr:   #3a5a6a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .header-left h1 {
+    font-size: 16px;
+    font-weight: normal;
+    color: var(--accent2);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .header-left p {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+  .status-dot.ready    { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-dot.scraping { background: var(--orange); animation: pulse 1s infinite; }
+  .status-dot.error    { background: var(--red); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+  }
+
+  .status-text { color: var(--muted); }
+
+  #btn-refresh {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--accent);
+    padding: 6px 14px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.2s;
+  }
+  #btn-refresh:hover { background: var(--bg3); border-color: var(--accent); }
+  #btn-refresh:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Main ── */
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px 16px;
+  }
+
+  /* ── Search ── */
+  .search-section {
+    margin-bottom: 24px;
+  }
+
+  .search-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+
+  .search-box {
+    display: flex;
+    gap: 8px;
+  }
+
+  #teacher-input {
+    flex: 1;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    font-family: inherit;
+    font-size: 14px;
+    border-radius: 4px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  #teacher-input:focus { border-color: var(--accent); }
+
+  #teacher-select {
+    flex: 1;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    font-family: inherit;
+    font-size: 14px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .woche-info {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 10px;
+  }
+  .woche-info span { color: var(--accent2); }
+
+  /* ── Loading Overlay ── */
+  #loading {
+    display: none;
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Result ── */
+  #result { }
+
+  .teacher-name {
+    font-size: 20px;
+    color: var(--accent2);
+    margin-bottom: 4px;
+    letter-spacing: 1px;
+  }
+  .teacher-meta {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+
+  .day-block {
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+
+  .day-header {
+    padding: 8px 14px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-weight: bold;
+  }
+  .day-Mo { background: var(--tag-mo); }
+  .day-Di { background: var(--tag-di); }
+  .day-Mi { background: var(--tag-mi); }
+  .day-Do { background: var(--tag-do); }
+  .day-Fr { background: var(--tag-fr); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    background: var(--bg3);
+    color: var(--muted);
+    text-align: left;
+    padding: 7px 14px;
+    font-size: 11px;
+    font-weight: normal;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 8px 14px;
+    border-bottom: 1px solid #161a24;
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #1a1f2e; }
+
+  .col-std   { color: var(--orange); font-weight: bold; width: 60px; }
+  .col-fach  { color: var(--accent2); width: 120px; }
+  .col-kls   { color: var(--green); width: 80px; }
+  .col-raum  { color: #c8a0d0; width: 80px; }
+  .col-hint  { color: var(--muted); font-size: 11px; }
+
+  tr.aenderung td { }
+  tr.aenderung .col-fach  { color: var(--orange); }
+  tr.aenderung .col-std::after { content: " ⚠"; font-size: 10px; color: var(--orange); }
+
+  /* ── Empty / Error States ── */
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .empty .big { font-size: 32px; margin-bottom: 12px; }
+
+  .error-box {
+    background: #2a1a1a;
+    border: 1px solid #5a2a2a;
+    border-radius: 4px;
+    padding: 14px 16px;
+    color: var(--red);
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+
+  /* ── Scraping Progress ── */
+  #scrape-status {
+    display: none;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .scrape-label { color: var(--muted); font-size: 13px; margin-top: 12px; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>Stundenplan</h1>
+    <p>Gymnasium Olbernhau · Lehrer-Übersicht</p>
+  </div>
+  <div class="status-bar">
+    <div class="status-dot" id="status-dot"></div>
+    <span class="status-text" id="status-text">Verbinde...</span>
+    <button id="btn-refresh" onclick="triggerScrape()">↻ Neu laden</button>
+  </div>
+</header>
+
+<main>
+
+  <div id="scrape-status">
+    <div class="spinner"></div>
+    <div class="scrape-label" id="scrape-label">Browser startet, lade alle Klassen...</div>
+  </div>
+
+  <div class="search-section">
+    <div class="search-label">Lehrer auswählen</div>
+    <div class="search-box">
+      <input type="text" id="teacher-input" placeholder="Kürzel eingeben, z.B. Knu..." oninput="filterTeachers()" autocomplete="off" />
+      <select id="teacher-select" onchange="selectFromDropdown()">
+        <option value="">– Aus Liste wählen –</option>
+      </select>
+    </div>
+    <div class="woche-info" id="woche-info"></div>
+  </div>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <div>Lade Stundenplan...</div>
+  </div>
+
+  <div id="result">
+    <div class="empty">
+      <div class="big">📋</div>
+      Lehrer eingeben oder aus Liste wählen.
+    </div>
+  </div>
+
+</main>
+
+<script>
+const TAGE = ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag"];
+const TAG_SHORT = {"Montag":"Mo","Dienstag":"Di","Mittwoch":"Mi","Donnerstag":"Do","Freitag":"Fr"};
+let allTeachers = [];
+let statusInterval = null;
+
+// ── Status Polling ────────────────────────────────────────────────────────────
+
+async function pollStatus() {
+  try {
+    const res = await fetch("/api/status");
+    const data = await res.json();
+    updateStatusUI(data);
+  } catch(e) {
+    setStatusDot("error", "Verbindungsfehler");
+  }
+}
+
+function updateStatusUI(data) {
+  const dot  = document.getElementById("status-dot");
+  const text = document.getElementById("status-text");
+  const scrapeBox = document.getElementById("scrape-status");
+  const btn  = document.getElementById("btn-refresh");
+
+  dot.className = "status-dot " + data.status;
+
+  if (data.status === "scraping") {
+    text.textContent = "Lade Stundenpläne...";
+    scrapeBox.style.display = "block";
+    btn.disabled = true;
+    // Fortschrittstext animieren
+    const labels = [
+      "Browser startet...",
+      "Lade Klasse 5a, 5b, 6a...",
+      "Klassen 7a–8b werden geladen...",
+      "Klassen 9a–10c werden geladen...",
+      "Klassen 11, 12 werden geladen...",
+      "Fast fertig..."
+    ];
+    const idx = Math.floor((Date.now() / 3000)) % labels.length;
+    document.getElementById("scrape-label").textContent = labels[idx];
+  } else {
+    scrapeBox.style.display = "none";
+    btn.disabled = false;
+
+    if (data.status === "ready") {
+      const upd = data.last_update ? ` · ${data.last_update}` : "";
+      text.textContent = `${data.teachers} Lehrer · ${data.klassen.length} Klassen${upd}`;
+      updateTeacherList(data);
+      if (data.woche_info) {
+        document.getElementById("woche-info").innerHTML =
+          `Aktuelle Woche: <span>${data.woche_info}</span>`;
+      }
+    } else if (data.status === "error") {
+      text.textContent = "Fehler: " + data.error;
+    } else {
+      text.textContent = "Bereit";
+    }
+  }
+}
+
+async function updateTeacherList(data) {
+  if (allTeachers.length > 0) return; // Bereits geladen
+  try {
+    const res = await fetch("/api/teachers");
+    allTeachers = await res.json();
+    populateSelect(allTeachers);
+  } catch(e) {}
+}
+
+function populateSelect(teachers) {
+  const sel = document.getElementById("teacher-select");
+  const current = sel.value;
+  sel.innerHTML = '<option value="">– Aus Liste wählen –</option>';
+  teachers.forEach(t => {
+    const o = document.createElement("option");
+    o.value = t; o.textContent = t;
+    sel.appendChild(o);
+  });
+  if (current) sel.value = current;
+}
+
+// ── Scrape auslösen ───────────────────────────────────────────────────────────
+
+async function triggerScrape() {
+  allTeachers = [];
+  document.getElementById("teacher-select").innerHTML = '<option value="">– Aus Liste wählen –</option>';
+  try {
+    await fetch("/api/scrape", { method: "POST" });
+  } catch(e) {}
+}
+
+// ── Lehrer-Suche ──────────────────────────────────────────────────────────────
+
+function filterTeachers() {
+  const q = document.getElementById("teacher-input").value.trim().toLowerCase();
+  if (!q) {
+    populateSelect(allTeachers);
+    return;
+  }
+  const filtered = allTeachers.filter(t => t.toLowerCase().includes(q));
+  populateSelect(filtered);
+
+  // Bei eindeutigem Treffer direkt anzeigen
+  if (filtered.length === 1) {
+    showTeacher(filtered[0]);
+  } else if (q.length >= 2 && filtered.length > 0) {
+    // Exakten Match bevorzugen
+    const exact = filtered.find(t => t.toLowerCase() === q);
+    if (exact) showTeacher(exact);
+  }
+}
+
+function selectFromDropdown() {
+  const val = document.getElementById("teacher-select").value;
+  if (val) {
+    document.getElementById("teacher-input").value = val;
+    showTeacher(val);
+  }
+}
+
+// ── Lehrer anzeigen ───────────────────────────────────────────────────────────
+
+async function showTeacher(name) {
+  if (!name) return;
+
+  document.getElementById("loading").style.display = "block";
+  document.getElementById("result").innerHTML = "";
+
+  try {
+    const res = await fetch(`/api/teacher/${encodeURIComponent(name)}`);
+    if (!res.ok) {
+      document.getElementById("result").innerHTML =
+        `<div class="empty"><div class="big">🔍</div>Lehrer "${name}" nicht gefunden.</div>`;
+      return;
+    }
+    const data = await res.json();
+    renderTeacher(data);
+  } catch(e) {
+    document.getElementById("result").innerHTML =
+      `<div class="error-box">Fehler: ${e.message}</div>`;
+  } finally {
+    document.getElementById("loading").style.display = "none";
+  }
+}
+
+function renderTeacher(data) {
+  const result = document.getElementById("result");
+  const tage = data.tage;
+
+  if (!tage || Object.keys(tage).length === 0) {
+    result.innerHTML = `<div class="empty"><div class="big">📭</div>Keine Einträge für <b>${data.teacher}</b> diese Woche.</div>`;
+    return;
+  }
+
+  let html = `
+    <div class="teacher-name">${data.teacher}</div>
+    <div class="teacher-meta">${data.total} Stunden diese Woche</div>
+  `;
+
+  TAGE.forEach(tag => {
+    const entries = tage[tag];
+    if (!entries || !entries.length) return;
+
+    const short = TAG_SHORT[tag];
+    html += `
+      <div class="day-block">
+        <div class="day-header day-${short}">${tag} · ${entries.length} Std.</div>
+        <table>
+          <tr><th>Std</th><th>Fach</th><th>Klasse</th><th>Raum</th><th>Hinweis</th></tr>
+    `;
+
+    entries.forEach(e => {
+      const cls = e.aenderung ? ' class="aenderung"' : '';
+      html += `
+        <tr${cls}>
+          <td class="col-std">${e.stunde}</td>
+          <td class="col-fach">${e.fach}</td>
+          <td class="col-kls">${e.klasse}</td>
+          <td class="col-raum">${e.raum}</td>
+          <td class="col-hint">${e.hinweis}</td>
+        </tr>
+      `;
+    });
+
+    html += `</table></div>`;
+  });
+
+  result.innerHTML = html;
+}
+
+// ── Enter-Taste ───────────────────────────────────────────────────────────────
+
+document.getElementById("teacher-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") {
+    const q = e.target.value.trim();
+    if (q) showTeacher(q);
+  }
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+pollStatus();
+statusInterval = setInterval(pollStatus, 2500);
+</script>
+</body>
+</html>
