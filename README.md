@@ -1,0 +1,1 @@
+python stundenplan_scraper.py --kein-headless
